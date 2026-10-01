@@ -1391,6 +1391,23 @@ class BoardScene extends Phaser.Scene {
     return Math.max(0, base + delta);
   }
 
+
+  /** Sum PP spent on permanent tracks (flat unlockCostPp × level). For save migration. */
+  estimatePpSpent() {
+    let spent = 0;
+    const mils = (ECONOMY && ECONOMY.milestones) || [];
+    mils.forEach((def) => {
+      const lv = (this.milestoneLevels && this.milestoneLevels[def.id]) || 0;
+      spent += lv * (def.unlockCostPp | 0);
+    });
+    const traits = (ECONOMY && ECONOMY.hiveTraits) || [];
+    traits.forEach((def) => {
+      const lv = (this.hiveTraitLevels && this.hiveTraitLevels[def.id]) || 0;
+      spent += lv * (def.unlockCostPp | 0);
+    });
+    return spent;
+  }
+
   tryBuyTrack(def, kind) {
     const id = def.id;
     const current = this.getTrackLevel(id, kind);
@@ -2206,6 +2223,11 @@ class BoardScene extends Phaser.Scene {
   }
 
   toast(msg) {
+    if (!this.toastText) {
+      // Create aborted or HUD not ready — avoid secondary crash
+      console.warn('[toast]', msg);
+      return;
+    }
     this.toastText.setText(msg);
     this.toastText.setDepth(
       this.spendPanelOpen || this.prestigePanelOpen ? 220 : 100
