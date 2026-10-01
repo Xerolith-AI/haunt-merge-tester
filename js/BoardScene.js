@@ -1786,17 +1786,17 @@ class BoardScene extends Phaser.Scene {
         fontSize: Math.max(11, Math.floor(this.entityR * 0.42)) + 'px',
         fontStyle: 'bold',
         color: '#e8e0d4',
-        backgroundColor: '#00000066',
-        padding: { x: 2, y: 1 },
+        backgroundColor: '#00000088',
+        padding: { x: 3, y: 1 },
         align: 'center',
       })
       .setOrigin(0.5);
     const tierBadge = this.add
       .text(0, this.entityR * 0.62, 'T' + (tier + 1), {
         fontFamily: 'system-ui, sans-serif',
-        fontSize: '10px',
+        fontSize: '11px',
         color: '#ffd35a',
-        backgroundColor: '#00000088',
+        backgroundColor: '#00000099',
         padding: { x: 3, y: 1 },
       })
       .setOrigin(0.5);
