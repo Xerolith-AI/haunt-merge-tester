@@ -10,6 +10,7 @@
  *         posts_start=4, income_mult 1.5, defense_base 5 + soft-unlock 5–8.
  */
 class BoardScene extends Phaser.Scene {
+  static BUILD_ID = '2026-10-01c';
   constructor() {
     super('BoardScene');
   }
@@ -118,89 +119,7 @@ class BoardScene extends Phaser.Scene {
     this.buildPrestigePanel(W, H);
     this.buildSpendPanel(W, H);
 
-    const saved = SaveSystem.load();
-    if (saved) {
-      this.scrap = saved.scrap;
-      this.duskPressure = saved.duskPressure;
-      this.gateHp = saved.gateHp;
-      this.gateFallen = saved.gateFallen;
-      this.gateFrozen = saved.gateFrozen;
-      this.lifetimeScrap = saved.lifetimeScrap;
-      this.maxTierReached = saved.maxTierReached;
-      this.prestigeCount = saved.prestigeCount;
-      this.prestigePoints = saved.prestigePoints;
-      this.milestoneLevels = saved.milestoneLevels || { M01: 0, M02: 0 };
-      this.hiveTraitLevels = saved.hiveTraitLevels || {};
-      this.lifetimePpEarned = saved.lifetimePpEarned || 0;
-      // Persist remaining CD; subtract wall time since save so offline counts
-      {
-        let rem =
-          typeof saved.spawnCooldownRemaining === 'number'
-            ? saved.spawnCooldownRemaining
-            : 0;
-        const savedAt =
-          typeof saved.savedAt === 'number' ? saved.savedAt : 0;
-        if (savedAt > 0 && rem > 0) {
-          rem -= Math.max(0, (Date.now() - savedAt) / 1000);
-        }
-        this.spawnCooldownRemaining = Math.max(0, rem);
-        this._spawnWasReady = this.spawnCooldownRemaining <= 0;
-      }
-      if (!this.lifetimePpEarned) {
-        // Migrate v3 saves: reconstruct earned ≈ bank + spent on tracks
-        this.lifetimePpEarned = this.prestigePoints + this.estimatePpSpent();
-      }
-      saved.entities.forEach((e) => {
-        if (this.isFreeCell(e.col, e.row) && !this.grid[e.row][e.col]) {
-          this.placeEntity(e.col, e.row, e.tier, true);
-        }
-      });
-      if (saved.posts) {
-        saved.posts.forEach((p) => {
-          const post = this.posts[p.slot];
-          if (!post) return;
-          // Prefer saved unlock if true; checkPostUnlocks may open more
-          if (p.unlocked) post.unlocked = true;
-          if (p.tier != null && post.unlocked) {
-            post.tier = p.tier;
-            this.noteMaxTier(p.tier + 1);
-          }
-          this.refreshPostVisual(post);
-        });
-      }
-      if (saved.yardBUnlocked) this.yardBUnlocked = true;
-      if (saved.postsB) {
-        saved.postsB.forEach((p) => {
-          const post = this.postsB[p.slot];
-          if (!post) return;
-          if (p.unlocked) post.unlocked = true;
-          if (p.tier != null && post.unlocked) {
-            post.tier = p.tier;
-            this.noteMaxTier(p.tier + 1);
-          }
-          this.refreshPostVisual(post);
-        });
-      }
-      this.refreshYardBChrome();
-      this.checkPostUnlocks(false);
-      if (this.gateFallen) {
-        // Soft-fail resume: frozen at 1 HP until prestige
-        if (this.gateHp <= 0) this.gateHp = 1;
-        this.gateFrozen = true;
-        this.showPrestigePanel();
-      }
-    } else {
-      this.placeEntity(1, 1, 0);
-      this.placeEntity(3, 1, 0);
-    }
-    this.refreshHUD();
-    this.refreshAllTrackChrome();
-    this.refreshSpawnButton();
-
-    this.input.on('pointerdown', this.onPointerDown, this);
-    this.input.on('pointermove', this.onPointerMove, this);
-    this.input.on('pointerup', this.onPointerUp, this);
-
+    // Toast before save restore so a migrate hiccup cannot leave toast undefined
     this.toastText = this.add
       .text(W / 2, this.boardY + this.FREE_ROWS * this.cellH * 0.5, '', {
         fontFamily: 'system-ui, sans-serif',
@@ -212,6 +131,101 @@ class BoardScene extends Phaser.Scene {
       .setOrigin(0.5)
       .setDepth(100)
       .setAlpha(0);
+
+    try {
+      const saved = SaveSystem.load();
+      if (saved) {
+        this.scrap = saved.scrap;
+        this.duskPressure = saved.duskPressure;
+        this.gateHp = saved.gateHp;
+        this.gateFallen = saved.gateFallen;
+        this.gateFrozen = saved.gateFrozen;
+        this.lifetimeScrap = saved.lifetimeScrap;
+        this.maxTierReached = saved.maxTierReached;
+        this.prestigeCount = saved.prestigeCount;
+        this.prestigePoints = saved.prestigePoints;
+        this.milestoneLevels = saved.milestoneLevels || { M01: 0, M02: 0 };
+        this.hiveTraitLevels = saved.hiveTraitLevels || {};
+        this.lifetimePpEarned = saved.lifetimePpEarned || 0;
+        // Persist remaining CD; subtract wall time since save so offline counts
+        {
+          let rem =
+            typeof saved.spawnCooldownRemaining === 'number'
+              ? saved.spawnCooldownRemaining
+              : 0;
+          const savedAt =
+            typeof saved.savedAt === 'number' ? saved.savedAt : 0;
+          if (savedAt > 0 && rem > 0) {
+            rem -= Math.max(0, (Date.now() - savedAt) / 1000);
+          }
+          this.spawnCooldownRemaining = Math.max(0, rem);
+          this._spawnWasReady = this.spawnCooldownRemaining <= 0;
+        }
+        if (!this.lifetimePpEarned) {
+          // Migrate v3 saves: reconstruct earned ≈ bank + spent on tracks
+          // Inline fallback if method missing (stale cache / partial load)
+          const spent =
+            typeof this.estimatePpSpent === 'function'
+              ? this.estimatePpSpent()
+              : 0;
+          this.lifetimePpEarned = this.prestigePoints + spent;
+        }
+        saved.entities.forEach((e) => {
+          if (this.isFreeCell(e.col, e.row) && !this.grid[e.row][e.col]) {
+            this.placeEntity(e.col, e.row, e.tier, true);
+          }
+        });
+        if (saved.posts) {
+          saved.posts.forEach((p) => {
+            const post = this.posts[p.slot];
+            if (!post) return;
+            // Prefer saved unlock if true; checkPostUnlocks may open more
+            if (p.unlocked) post.unlocked = true;
+            if (p.tier != null && post.unlocked) {
+              post.tier = p.tier;
+              this.noteMaxTier(p.tier + 1);
+            }
+            this.refreshPostVisual(post);
+          });
+        }
+        if (saved.yardBUnlocked) this.yardBUnlocked = true;
+        if (saved.postsB) {
+          saved.postsB.forEach((p) => {
+            const post = this.postsB[p.slot];
+            if (!post) return;
+            if (p.unlocked) post.unlocked = true;
+            if (p.tier != null && post.unlocked) {
+              post.tier = p.tier;
+              this.noteMaxTier(p.tier + 1);
+            }
+            this.refreshPostVisual(post);
+          });
+        }
+        this.refreshYardBChrome();
+        this.checkPostUnlocks(false);
+        if (this.gateFallen) {
+          // Soft-fail resume: frozen at 1 HP until prestige
+          if (this.gateHp <= 0) this.gateHp = 1;
+          this.gateFrozen = true;
+          this.showPrestigePanel();
+        }
+      } else {
+        this.placeEntity(1, 1, 0);
+        this.placeEntity(3, 1, 0);
+      }
+    } catch (err) {
+      console.error('[BoardScene] save restore failed', err);
+      // Fresh board so loop still runs
+      if (!this.grid[1][1]) this.placeEntity(1, 1, 0);
+      if (!this.grid[1][3]) this.placeEntity(3, 1, 0);
+    }
+    this.refreshHUD();
+    this.refreshAllTrackChrome();
+    this.refreshSpawnButton();
+
+    this.input.on('pointerdown', this.onPointerDown, this);
+    this.input.on('pointermove', this.onPointerMove, this);
+    this.input.on('pointerup', this.onPointerUp, this);
   }
 
   // ---------- Drawing ----------
