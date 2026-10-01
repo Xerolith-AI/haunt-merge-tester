@@ -1783,7 +1783,7 @@ class BoardScene extends Phaser.Scene {
     const label = this.add
       .text(0, this.entityR * 0.05, def.name.split(' ')[0], {
         fontFamily: 'system-ui, sans-serif',
-        fontSize: Math.max(9, Math.floor(this.entityR * 0.34)) + 'px',
+        fontSize: Math.max(11, Math.floor(this.entityR * 0.42)) + 'px',
         fontStyle: 'bold',
         color: '#e8e0d4',
         backgroundColor: '#00000066',
