@@ -1,0 +1,14 @@
+{
+  "id": "haunt",
+  "role": "default",
+  "style": "realistic_brutal",
+  "bg": "#0D0A0C",
+  "bg_secondary": "#1C1412",
+  "accent": "#8B1E1E",
+  "danger": "#4A0E0E",
+  "reward": "#A67C2D",
+  "chrome": "#C4B59A",
+  "prestige": "#5C1A1A",
+  "ground": "#2A1810",
+  "rust": "#6B3A2A"
+}
