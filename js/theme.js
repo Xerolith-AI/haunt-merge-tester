@@ -28,7 +28,7 @@ const THEME = {
     accent: 0xf07a1a,
     accentHex: '#F07A1A',
     button: 0x9b5de5,
-    buttonText: '#E8E0D4',
+    buttonText: '#E8E0D4', 
     danger: 0x8b1e1e,
     reward: 0xffd35a,
     chrome: 0xe8e0d4,
