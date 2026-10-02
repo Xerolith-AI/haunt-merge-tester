@@ -1,10 +1,10 @@
 /**
- * Issue #1 patch — load after BoardScene.
- * Merge/upgrade posted units, tap-to-recall, Gate HP bar color.
+ * Haunt Merge tester patch — issue #1 plus readability.
+ * Load after BoardScene, before main.js.
  */
 (function () {
   if (typeof BoardScene === 'undefined') return;
-  BoardScene.BUILD_ID = '2026-10-02a';
+  BoardScene.BUILD_ID = '2026-10-02b';
 
   BoardScene.prototype.snapBack = function (src) {
     const pos = this.cellCenter(src.col, src.row);
@@ -59,7 +59,7 @@
       this.refreshHUD();
       this.persist();
       this.toast(
-        'Upgraded post → T' + (nextTier + 1) + ' ' + THEME.tiers[nextTier].name
+        'Wall upgraded → T' + (nextTier + 1) + ' ' + THEME.tiers[nextTier].name
       );
       return;
     }
@@ -68,8 +68,8 @@
     post.tier = tier;
     this.noteMaxTier(tier + 1);
     this.refreshPostVisual(post);
-    const yardTag = post.yardId === 'B' ? 'Yard B' : 'Yard A';
-    this.toast('Assigned T' + (tier + 1) + ' → ' + yardTag);
+    const yardTag = post.yardId === 'B' ? 'Side yard' : 'the wall';
+    this.toast('Stationed T' + (tier + 1) + ' on ' + yardTag);
     this.checkPostUnlocks(true);
     this.persist();
   };
@@ -85,16 +85,38 @@
     origDown.call(this, pointer);
   };
 
+  BoardScene.prototype.ensureReadability = function () {
+    if (this._readabilityReady) return;
+    this._readabilityReady = true;
+    if (this.gateIcon) {
+      this.gateIcon.setScale(this.gateIcon.scaleX * 1.35);
+      this.gateIcon.setDepth(6);
+    }
+    const W = this.scale.width;
+    const veilH = 28;
+    this.duskVeil = this.add
+      .rectangle(W / 2, this.boardY + veilH / 2, W - 16, veilH, 0x1a0508, 0)
+      .setDepth(8);
+    this.orderText = this.add
+      .text(this.boardX + 8, this.boardY + 6, '', {
+        fontFamily: 'system-ui, sans-serif',
+        fontSize: '13px',
+        fontStyle: 'bold',
+        color: '#e8e0d4',
+      })
+      .setDepth(9);
+  };
+
   const origHUD = BoardScene.prototype.refreshHUD;
   BoardScene.prototype.refreshHUD = function () {
     origHUD.call(this);
-    if (this.subText) {
-      this.subText.setText(
-        'Drag merge · drop same tier on a post to upgrade · tap post to recall'
-      );
-    }
+    this.ensureReadability();
+
     const base = Math.max(1, ECONOMY.dusk.gateHpBase);
     const hpFrac = Phaser.Math.Clamp(this.gateHp / base, 0, 1);
+    const def = this.getDefense();
+    const pressure = this.duskPressure;
+    const losing = pressure > def + 0.5 && !this.gateFrozen;
     const fillW = Math.max(
       2,
       this.duskBarW * hpFrac - (this.duskUseMeterArt ? 4 : 0)
@@ -113,9 +135,7 @@
         if (this.duskBarFill.setTint) this.duskBarFill.setTint(hpTint);
       } else {
         this.duskBarFill.width = fillW;
-        if (this.duskBarFill.setFillStyle) {
-          this.duskBarFill.setFillStyle(hpTint, 1);
-        }
+        if (this.duskBarFill.setFillStyle) this.duskBarFill.setFillStyle(hpTint, 1);
       }
     }
     const hpColor =
@@ -126,11 +146,57 @@
           : hpFrac <= 0.6
             ? '#a67c2d'
             : '#c4b59a';
-    if (this.gateHpText) this.gateHpText.setColor(hpColor);
+    if (this.gateHpText) {
+      this.gateHpText.setColor(losing ? '#f07a1a' : hpColor);
+      this.gateHpText.setText(
+        (losing ? 'GATE UNDER DUSK  ' : 'Hold the Gate  ') +
+          Math.floor(this.gateHp) +
+          '/' +
+          ECONOMY.dusk.gateHpBase
+      );
+    }
+    if (this.subText) {
+      this.subText.setText('Station the hive on the wall. Empty posts are unmanned.');
+    }
     if (this.hintText) {
       this.hintText.setText(
-        'Gate bar shifts bone → gold → blood as HP drops · tap a post to pull it back'
+        losing
+          ? 'Dusk is over the wall — station a stronger caste or the Gate falls'
+          : 'Tap a post to pull it back · drop the same tier on a post to upgrade'
       );
+    }
+    if (this.yardLabel) {
+      const manned = this.posts.filter(function (p) {
+        return p && p.unlocked && p.tier != null;
+      }).length;
+      this.yardLabel.setText('Yard A · the wall · ' + manned + ' stationed');
+      this.yardLabel.setColor(manned === 0 ? '#f07a1a' : '#c4b59a');
+    }
+    if (this.yardBLabel) {
+      this.yardBLabel.setText(this.yardBUnlocked ? 'Side yard' : 'Side yard · locked');
+    }
+    if (this.defText) {
+      this.defText.setColor(losing ? '#f07a1a' : '#a898b8');
+      this.defText.setText(
+        'Wall ' +
+          def.toFixed(0) +
+          '  ·  Dusk ' +
+          pressure.toFixed(0) +
+          (losing ? '  OVER' : '  held')
+      );
+    }
+    if (this.orderText) {
+      this.orderText.setText(losing ? 'DUSK IS OVER THE WALL' : 'HOLD THE NIGHT GATE');
+      this.orderText.setColor(losing ? '#f07a1a' : '#e8e0d4');
+    }
+    if (this.duskVeil) {
+      const threat = losing
+        ? Phaser.Math.Clamp((pressure - def) / Math.max(40, pressure), 0.25, 0.85)
+        : 0.08;
+      this.duskVeil.setFillStyle(0x1a0508, threat);
+    }
+    if (this.gateIcon && this.gateIcon.setAlpha) {
+      this.gateIcon.setAlpha(losing ? 1 : 0.92);
     }
   };
 })();
